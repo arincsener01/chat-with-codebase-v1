@@ -1,13 +1,12 @@
 import os
 from openai import OpenAI
-from chatbot.pinecone_utils import connect_pinecone
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from chatbot.pinecone_utils import connect_pinecone, search_vectors, insert_vectors
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
 class Chatbot:
-    def __init__(self, model="gpt-4o", codebase_name=None):
-        # Initialize OpenAI client
-        self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    def __init__(self, model="gpt-4", codebase_name=None):
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.db = connect_pinecone()
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         self.model = model
@@ -34,14 +33,28 @@ class Chatbot:
             query_vector = self.embeddings.embed_query(question)
             print(
                 f"Query vector generated: {query_vector[:5]}... (truncated for display)"
-            )  # Print part of the vector
+            )  # Debugging vector
 
             search_results = self.db.query(
                 vector=query_vector,
                 top_k=10,
                 include_metadata=True,
+                namespace=self.codebase_name,
             )
-            print(f"Search results: {search_results}")  # Debugging Pinecone results
+            print(
+                f"Raw search results: {search_results}"
+            )  # Debugging raw Pinecone response
+
+            # Validate and extract matches
+            matches = search_results.get("matches", [])
+            if not matches:
+                print("No matches found in Pinecone query.")
+                return {
+                    "answer": "No relevant documents found for the query.",
+                    "related_docs": "",
+                }
+
+            print(f"Extracted matches: {matches}")  # Debugging extracted matches
         except Exception as e:
             print(f"Error during similarity search: {e}")
             return {
@@ -49,12 +62,21 @@ class Chatbot:
                 "related_docs": "",
             }
 
-        # Extract context from search results
+        # Extract context from matches
         try:
-            context = "\n".join(
-                f"Source: {match['metadata']['source']}, Content: {match.get('values', '')}"
-                for match in search_results["matches"]
-            )
+            # Check if matches are in the expected format
+            if isinstance(matches, list):
+                context = "\n".join(
+                    f"Source: {match['metadata'].get('source', 'Unknown')}, Content: {match['metadata'].get('content', 'No content available')}"
+                    for match in matches
+                )
+            else:
+                print(f"Unexpected 'matches' format: {type(matches)}")
+                return {
+                    "answer": "Unexpected data format in Pinecone matches.",
+                    "related_docs": "",
+                }
+
             print(f"Extracted context: {context}")  # Debugging extracted context
         except Exception as e:
             print(f"Error while extracting context: {e}")
@@ -73,11 +95,7 @@ class Chatbot:
             messages = [
                 {
                     "role": "system",
-                    "content": "You are an expert assistant helping with codebase queries. Provide detailed and thorough answers by leveraging the following context. Make sure to explain in simple terms when possible, and cite specific parts of the context when answering. If the question is unrelated to the codebase or seems like a random query (e.g., "
-                    "How is the weather today?"
-                    "), respond with "
-                    "I don't know."
-                    "",
+                    "content": "You are a helpful assistant for codebase queries. Provide detailed and thorough answers by leveraging the following context. Cite specific parts of the context when answering. If the question is unrelated, respond with 'I don't know.'",
                 },
                 {"role": "assistant", "content": persistent_context},
                 {"role": "user", "content": f"{context}\n\n{question}"},
@@ -94,17 +112,20 @@ class Chatbot:
 
         # Generate response using OpenAI
         try:
-            print("my name is arınç")
             response = self.client.chat.completions.create(
-                # model=self.model,
-                model="gpt-4o",
+                model=self.model,
                 messages=messages,
                 max_tokens=200,
                 temperature=0.7,
             )
             print(f"OpenAI response: {response}")  # Debugging OpenAI response
-            # self.last_answer = response["choices"][0]["message"]["content"].strip()
-            self.last_answer = response.choices[0].message.content
+
+            # Check if response structure matches expected format
+            if hasattr(response, "choices") and len(response.choices) > 0:
+                self.last_answer = response.choices[0].message.content.strip()
+            else:
+                print(f"Unexpected OpenAI response format: {response}")
+                self.last_answer = "Error: Unexpected OpenAI response format."
         except Exception as e:
             print(f"Error generating response: {e}")
             self.last_answer = f"Error generating response: {e}"

@@ -15,7 +15,7 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 os.environ["OPENAI_API_KEY"] = OPENAI_KEY
 
 # List of available language models
-available_models = ["OpenAI GPT-4o-Mini"]
+available_models = ["gpt-4"]
 
 # Set up the Streamlit app
 st.title("cobase")
@@ -35,6 +35,9 @@ with st.sidebar:
         "Enter GitHub Repository URL", st.session_state.repo_url
     )
 
+    if st.session_state.repo_url:
+        print(f"Selected repository: {st.session_state.repo_url}")
+
     # Dropdown for selecting the language model
     selected_model = st.selectbox("Select Language Model", available_models)
     with st.expander("ℹ️ Information about the selected model"):
@@ -51,27 +54,39 @@ with st.sidebar:
                     codebase_name = st.session_state.repo_url.split("/")[-1].replace(
                         ".git", ""
                     )
+                    print(f"Selected repo is: {codebase_name}")
                     # Clone the repository
                     repo_dir = clone_repo(st.session_state.repo_url, codebase_name)
 
                     # Connect to Pinecone
-                    print("okan")
                     connect_pinecone()
-                    print("arınç")
+                    print("Connection to Pinecone successful")
+
                     # Generate embeddings and insert into Pinecone
                     docs = get_docs(codebase_name)  # Load documents from the repo
+                    print(f"Loaded documents: {len(docs)} documents")
+                    for doc in docs[:5]:  # Print details of the first 5 documents
+                        print(
+                            f"Doc Metadata: {doc.metadata}, Content Preview: {doc.page_content[:100]}"
+                        )
                     if docs:
                         embeddings = HuggingFaceEmbeddings(
                             model_name="all-MiniLM-L6-v2"
                         )
+                        print("Embeddings initialized")
                         vectors = [
                             embeddings.embed_query(doc.page_content) for doc in docs
                         ]
+                        print(f"Generated vectors: {len(vectors)} vectors")
                         metadata = [
-                            {"source": doc.metadata.get("source", "Unknown")}
+                            {
+                                "source": doc.metadata.get("source", "Unknown"),
+                                "content": doc.page_content[:2000],
+                            }
                             for doc in docs
                         ]
-                        insert_vectors(vectors, metadata)
+                        print("Metadata prepared")
+                        insert_vectors(vectors, metadata, namespace=codebase_name)
                         st.success(
                             f"Embeddings for {codebase_name} created/loaded successfully in Pinecone!"
                         )
@@ -122,19 +137,28 @@ with tabs[0]:
                     st.session_state.chatbot = Chatbot(
                         model=selected_model, codebase_name=codebase_name
                     )
+                    print(f"Chatbot initialized for repo: {codebase_name}")
 
                 # Query the index
                 query_vector = st.session_state.chatbot.embeddings.embed_query(question)
-                search_results = search_vectors(query_vector)
+                print(f"Query vector generated: {query_vector[:5]} (truncated)")
+
+                search_results = search_vectors(
+                    query_vector, top_k=10, namespace=st.session_state.repo_url
+                )
+                print(f"Search results: {search_results}")
 
                 # Display related documents
-                st.write("### Related Documents")
-                for result in search_results:
-                    # Access metadata and other fields as dict keys
-                    doc_metadata = result.get("metadata", {})
-                    source = doc_metadata.get("source", "Unknown source")
-                    score = result.get("score", "No score")
-                    st.write(f"- Source: {source}, Score: {score}")
+                matches = search_results.get("matches", [])
+                if matches:
+                    st.write("### Related Documents")
+                    for match in matches:
+                        doc_metadata = match.get("metadata", {})
+                        source = doc_metadata.get("source", "Unknown source")
+                        score = match.get("score", "No score")
+                        st.write(f"- Source: {source}, Score: {score}")
+                else:
+                    st.warning("No related documents found.")
 
                 # Generate and display the response
                 st.write("### Question")

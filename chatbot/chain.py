@@ -33,7 +33,7 @@ PROMPT = PromptTemplate(
 
 def get_default_chain():
     return load_qa_chain(
-        ChatOpenAI(temperature=0, model="gpt-4o"),
+        ChatOpenAI(temperature=0, model="gpt-4"),
         chain_type="stuff",
         prompt=PROMPT,
     )
@@ -83,7 +83,7 @@ SUMMARIZE_PROMPT = PromptTemplate(
 
 
 def get_summarize_chain():
-    return LLMChain(llm=ChatOpenAI(model="gpt-4o"), prompt=SUMMARIZE_PROMPT)
+    return LLMChain(llm=ChatOpenAI(model="gpt-4"), prompt=SUMMARIZE_PROMPT)
 
 
 def get_jira_chain():
