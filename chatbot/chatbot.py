@@ -2,6 +2,7 @@ import os
 from openai import OpenAI
 from chatbot.pinecone_utils import connect_pinecone, search_vectors, insert_vectors
 from langchain_huggingface import HuggingFaceEmbeddings
+from tiktoken import encoding_for_model
 
 
 class Chatbot:
@@ -23,6 +24,10 @@ class Chatbot:
             f"Q: {entry['question']}\nA: {entry['answer']}"
             for entry in self.conversation_history
         )
+
+    def count_tokens(self, text, model="gpt-4"):
+        encoding = encoding_for_model(model)
+        return len(encoding.encode(text))
 
     def get_response(self, question):
         print(f"Received question: {question}")  # Debugging input
@@ -112,10 +117,23 @@ class Chatbot:
 
         # Generate response using OpenAI
         try:
+            # Estimate token usage and dynamically set max_tokens
+            input_tokens = sum(
+                self.count_tokens(msg["content"], self.model) for msg in messages
+            )
+            model_token_limit = (
+                8192 if self.model == "gpt-4" else 4096
+            )  # Adjust per model
+            available_tokens = model_token_limit - input_tokens
+            max_tokens = max(
+                256, min(available_tokens, 1000)
+            )  # Ensure minimum output size
+
+            print(f"Input tokens: {input_tokens}, Max tokens: {max_tokens}")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_tokens=200,
+                max_tokens=max_tokens,
                 temperature=0.7,
             )
             print(f"OpenAI response: {response}")  # Debugging OpenAI response
