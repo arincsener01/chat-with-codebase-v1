@@ -10,11 +10,32 @@ from chatbot.pinecone_utils import connect_pinecone, insert_vectors
 CLONE_DIR = "cloned_repos"
 
 BLACKLIST_DIRS = [
-    "**/dist/*",
-    "**/node_modules/*",
-    "**/build/*",
-    "**/public/*",
-    "**/.venv/*",
+    "**/dist/*",  # Build output directories
+    "**/node_modules/*",  # Dependency folder for Node.js
+    "**/build/*",  # Generic build output folder
+    "**/public/*",  # Static assets for frontend projects
+    "**/.venv/*",  # Virtual environments for Python
+    "**/__pycache__/*",  # Python bytecode cache
+    "**/.git/*",  # Git metadata
+    "**/.idea/*",  # IDE (e.g., IntelliJ) project files
+    "**/.vscode/*",  # Visual Studio Code project files
+    "**/logs/*",  # Log files
+    "**/coverage/*",  # Test coverage output
+    "**/out/*",  # Build or output directories (e.g., TypeScript/JavaScript)
+    "**/.next/*",  # Next.js build output
+    "**/.expo/*",  # Expo cache for React Native projects
+    "**/.cache/*",  # Cache directories
+    "**/target/*",  # Maven/Gradle build output (Java projects)
+    "**/tmp/*",  # Temporary files
+    "**/test-results/*",  # Test result outputs
+    "**/cypress/*",  # Cypress testing outputs
+    "**/e2e/*",  # End-to-end test directories
+    "**/env/*",  # Environment-specific files
+    "**/docs/*",  # Documentation directories
+    "**/storybook-static/*",  # Storybook build outputs
+    "**/functions/node_modules/*",  # Node.js modules in serverless functions
+    "**/android/build/*",  # Build output for Android (React Native or native)
+    "**/ios/build/*",  # Build output for iOS (React Native or native)
 ]
 
 
@@ -30,7 +51,33 @@ def clone_repo(repo_url, codebase_name):
     return repo_dir
 
 
-def get_docs(codebase, file_names=[".tsx", ".ts", ".js", ".py"]):
+def get_docs(
+    codebase,
+    file_names=[
+        ".tsx",  # TypeScript React
+        ".ts",  # TypeScript
+        ".js",  # JavaScript
+        ".py",  # Python
+        ".cpp",  # C++
+        ".java",  # Java
+        ".c",  # C
+        ".go",  # Go
+        ".rb",  # Ruby
+        ".php",  # PHP
+        ".swift",  # Swift
+        ".cs",  # C#
+        ".kt",  # Kotlin
+        ".rs",  # Rust
+        ".scala",  # Scala
+        ".m",  # Objective-C
+        ".sh",  # Shell script
+        ".html",  # HTML
+        ".css",  # CSS
+        ".json",  # JSON files
+        ".xml",  # XML files
+        ".sql",  # SQL scripts
+    ],
+):
     """Load codebase files and return as documents."""
     docs = []
     project_dir = os.path.join(CLONE_DIR, codebase)

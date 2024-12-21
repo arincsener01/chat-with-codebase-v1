@@ -1,4 +1,6 @@
+import os
 from langchain.chat_models import ChatOpenAI
+from langchain.chat_models.anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chains import LLMChain
@@ -31,9 +33,23 @@ PROMPT = PromptTemplate(
 )
 
 
+def get_llm(model_name="gpt-4o-mini-2024-07-18"):
+    """
+    Factory function to return appropriate LLM based on model name
+    """
+    if "claude" in model_name.lower():
+        return ChatAnthropic(
+            model_name="claude-3-sonnet-20240229",
+            temperature=0,
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        )
+    else:
+        return ChatOpenAI(temperature=0, model=model_name)
+
+
 def get_default_chain():
     return load_qa_chain(
-        ChatOpenAI(temperature=0, model="gpt-4"),
+        ChatOpenAI(temperature=0, model="gpt-4o-mini-2024-07-18"),
         chain_type="stuff",
         prompt=PROMPT,
     )
@@ -83,7 +99,9 @@ SUMMARIZE_PROMPT = PromptTemplate(
 
 
 def get_summarize_chain():
-    return LLMChain(llm=ChatOpenAI(model="gpt-4"), prompt=SUMMARIZE_PROMPT)
+    return LLMChain(
+        llm=ChatOpenAI(model="gpt-4o-mini-2024-07-18"), prompt=SUMMARIZE_PROMPT
+    )
 
 
 def get_jira_chain():
