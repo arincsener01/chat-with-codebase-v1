@@ -190,6 +190,7 @@ import streamlit as st
 from chatbot.chatbot import Chatbot
 from chatbot.embeddings import clone_repo, get_docs
 from chatbot.pinecone_utils import insert_vectors, search_vectors, connect_pinecone
+from chatbot.reranker_config import CrossEncoderReranker
 from langchain_community.embeddings import HuggingFaceEmbeddings
 import os
 from dotenv import load_dotenv
@@ -355,21 +356,35 @@ with tabs[0]:
                     query_vector = st.session_state.chatbot.embeddings.embed_query(
                         question
                     )
-                    search_results = search_vectors(
-                        query_vector, top_k=5, namespace=st.session_state.repo_url
+                    # change_made=related documents gösteriyoruz
+                    search_results = connect_pinecone().query(
+                        vector=query_vector,
+                        top_k=10,
+                        include_metadata=True,
+                        namespace=Chatbot(codebase_name=codebase_name).codebase_name,
                     )
+                    matches = search_results.get("matches", [])
+                reranked = CrossEncoderReranker().re_rank(question, matches)
+                # Display related documents in an expander
+                with st.expander("📚 Related Code Sections", expanded=False):
+                    if reranked:
+                        st.text("There are some matches")
+                        for idx, (doc, score) in enumerate(reranked):
+                            source = doc["metadata"].get("source", "Unknown source")
+                            relevance = round(score, 3)  # Score'u yuvarla
+                            content_preview = doc["metadata"].get(
+                                "content", "No preview available"
+                            )[
+                                :500
+                            ]  # İçeriğin ilk 500 karakterini al
 
-                    # Display related documents in an expander
-                    with st.expander("📚 Related Code Sections", expanded=False):
-                        matches = search_results.get("matches", [])
-                        if matches:
-                            for match in matches:
-                                doc_metadata = match.get("metadata", {})
-                                source = doc_metadata.get("source", "Unknown source")
-                                score = round(match.get("score", 0), 3)
-                                st.write(f"**Source:** {source} (Relevance: {score})")
-                        else:
-                            st.info("No closely related code sections found.")
+                            st.write(f"**Source:** {source} (Relevance: {relevance})")
+                            st.write(
+                                f"```{content_preview}```"
+                            )  # Kod bölümü olarak göster
+
+                    else:
+                        st.info("No closely related code sections found.")
 
                 # Generate and display the response
                 st.write("### Question")

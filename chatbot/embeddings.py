@@ -25,6 +25,7 @@ BLACKLIST_DIRS = [
     "**/.next/*",  # Next.js build output
     "**/.expo/*",  # Expo cache for React Native projects
     "**/.cache/*",  # Cache directories
+    "**/.eslintcache/*",  # Cache directories
     "**/target/*",  # Maven/Gradle build output (Java projects)
     "**/tmp/*",  # Temporary files
     "**/test-results/*",  # Test result outputs
