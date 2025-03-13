@@ -235,6 +235,7 @@ if "repo_url" not in st.session_state:
 if "error_message" not in st.session_state:
     st.session_state.error_message = None
 
+
 # Sidebar for GitHub repository URL and model selection
 with st.sidebar:
     st.subheader("Configuration")
@@ -334,19 +335,95 @@ def stream_response(response_text):
     message_placeholder.markdown(full_message)
 
 
-# Chat interface
-tabs = st.tabs(["Chat with Codebase"])
+def generate_solution_recommendation(issue_title: str, issue_description: str):
+    try:
+        if st.session_state.chatbot is None:
+            st.warning("Chatbot is not initialized. Please set up a repository first.")
+            return
 
-with tabs[0]:
+        # Construct query
+        query_text = f"""
+                        Issue:
+                        {issue_title}
+
+                        Description:
+                        {issue_description}
+
+                        Task:
+                        Analyze the given issue and description to generate solution recommendations. Provide a structured and detailed explanation of potential fixes. If applicable, include relevant code snippets that demonstrate how to implement the solution. Ensure that the recommended code is concise, follows best practices, and is easy to integrate.
+
+                        Response Format:
+                        1. **Understanding the Issue**: Briefly explain the problem based on the title and description.
+                        2. **Possible Causes**: List potential reasons for the issue.
+                        3. **Solution Recommendations**: Provide step-by-step solutions with clear explanations.
+                        4. **Code Examples**: Include relevant code snippets illustrating the solution.
+                        5. **Best Practices**: Suggest any additional improvements or optimizations.
+
+                        Important Notes:
+                        - Keep the explanation clear and structured.
+                        - Ensure the code examples are well-formatted and easy to understand.
+                        - If multiple solutions exist, compare them briefly.
+                        """
+
+        # Embed the query
+        query_vector = st.session_state.chatbot.embeddings.embed_query(query_text)
+
+        # Query vector database
+        with st.spinner("Fetching relevant codebase context..."):
+            search_results = connect_pinecone().query(
+                vector=query_vector,
+                top_k=10,
+                include_metadata=True,
+                namespace=st.session_state.chatbot.codebase_name,
+            )
+            matches = search_results.get("matches", [])
+
+        # Re-rank results
+        reranked = CrossEncoderReranker().re_rank(query_text, matches)
+
+        # Construct context for LLM prompt
+        relevant_code_sections = "\n\n".join(
+            [
+                doc["metadata"].get("content", "No content available")
+                for doc, _ in reranked
+            ]
+        )
+
+        # Generate response from LLM
+        with st.spinner("Generating solution recommendations..."):
+            response_content = st.session_state.chatbot.get_response(
+                f"Issue: {issue_title}\n"
+                f"Description: {issue_description}\n"
+                f"Related Code:\n{relevant_code_sections}\n"
+                f"Suggest a fix or solution based on this context."
+            )
+
+            if response_content and response_content.get("answer"):
+                return response_content["answer"]
+            else:
+                return "No recommendations found. Try refining the issue description."
+
+    except Exception as e:
+        return f"Error generating solution: {str(e)}"
+
+
+# Chat interface
+# tabs = st.tabs(["Chat with Codebase"])
+
+tab1, tab2 = st.tabs(["Chat with Codebase", "Solution Recommendations"])
+
+with tab1:
     st.write("Chat with your Codebase")
 
     if question := st.chat_input("Ask your codebase..."):
         if st.session_state.repo_url and selected_model:
             try:
+                # Ensure codebase_name is always set before usage
+                codebase_name = st.session_state.repo_url.split("/")[-1].replace(
+                    ".git", ""
+                )
+
                 if st.session_state.chatbot is None:
-                    codebase_name = st.session_state.repo_url.split("/")[-1].replace(
-                        ".git", ""
-                    )
                     st.session_state.chatbot = Chatbot(
                         model=selected_model, codebase_name=codebase_name
                     )
@@ -356,14 +433,14 @@ with tabs[0]:
                     query_vector = st.session_state.chatbot.embeddings.embed_query(
                         question
                     )
-                    # change_made=related documents gösteriyoruz
                     search_results = connect_pinecone().query(
                         vector=query_vector,
                         top_k=10,
                         include_metadata=True,
-                        namespace=Chatbot(codebase_name=codebase_name).codebase_name,
+                        namespace=codebase_name,  # Use the previously defined codebase_name
                     )
                     matches = search_results.get("matches", [])
+
                 reranked = CrossEncoderReranker().re_rank(question, matches)
                 # Display related documents in an expander
                 with st.expander("📚 Related Code Sections", expanded=False):
@@ -406,3 +483,18 @@ with tabs[0]:
             st.warning(
                 "Please configure a repository and select a model in the sidebar first."
             )
+with tab2:
+    st.header("Solution Recommendations")
+
+    issue_title = st.text_input("Issue Title", placeholder="Enter a short issue title")
+    issue_description = st.text_area(
+        "Issue Description", placeholder="Describe the issue in detail..."
+    )
+
+    if st.button("Generate Solution"):
+        if issue_title and issue_description:
+            solution = generate_solution_recommendation(issue_title, issue_description)
+            st.subheader("Suggested Solution:")
+            st.markdown(solution)
+        else:
+            st.warning("Please enter both title and description.")

@@ -37,6 +37,9 @@ BLACKLIST_DIRS = [
     "**/functions/node_modules/*",  # Node.js modules in serverless functions
     "**/android/build/*",  # Build output for Android (React Native or native)
     "**/ios/build/*",  # Build output for iOS (React Native or native)
+    "**/package-lock.json",  # Ignore package-lock.json
+    "**/yarn.lock",  # Ignore yarn.lock (if using Yarn)
+    "**/pnpm-lock.yaml",  # Ignore pnpm lock file (if using pnpm)
 ]
 
 
