@@ -62,13 +62,35 @@ class Chatbot:
 
         return context_messages
 
+    def get_recent_user_messages(self, num_messages=3):
+        """Retrieve the last N user and assistant messages as text for embedding."""
+        if not self.conversation_history:
+            return ""
+
+        recent_entries = self.conversation_history[-num_messages:]
+        combined = "\n".join(
+            f"User: {entry['question']}\nAssistant: {entry['answer']}"
+            for entry in recent_entries
+        )
+        return combined
+
     def get_response(self, question):
         print(f"Received question: {question}")
         self.last_question = question
 
         # Perform similarity search on Pinecone
         try:
-            query_vector = self.embeddings.embed_query(question)
+            # query_vector = self.embeddings.embed_query(question)
+            recent_context = self.get_recent_user_messages(num_messages=3)
+            augmented_query = (
+                f"{recent_context}\nUser Question: {question}"
+                if recent_context
+                else question
+            )
+            print("[DEBUG-QUERY] Augmented Query for Embedding:\n", augmented_query)
+
+            query_vector = self.embeddings.embed_query(augmented_query)
+
             search_results = self.db.query(
                 vector=query_vector,
                 top_k=10,

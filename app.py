@@ -350,19 +350,25 @@ def generate_solution_recommendation(issue_title: str, issue_description: str):
                         {issue_description}
 
                         Task:
-                        Analyze the given issue and description to generate solution recommendations. Provide a structured and detailed explanation of potential fixes. If applicable, include relevant code snippets that demonstrate how to implement the solution. Ensure that the recommended code is concise, follows best practices, and is easy to integrate.
+                        Analyze the given issue and description to generate a fully detailed solution recommendation. Your response **must be exhaustive and self-sufficient**, ensuring the user does not need to ask further questions. Provide precise technical guidance and a **fully working, production-ready code implementation**. 
 
-                        Response Format:
-                        1. **Understanding the Issue**: Briefly explain the problem based on the title and description.
-                        2. **Possible Causes**: List potential reasons for the issue.
-                        3. **Solution Recommendations**: Provide step-by-step solutions with clear explanations.
-                        4. **Code Examples**: Include relevant code snippets illustrating the solution.
-                        5. **Best Practices**: Suggest any additional improvements or optimizations.
+                        **Response Format:**
+                        1. **Understanding the Issue**: Provide an in-depth technical breakdown of the problem based on the title and description.
+                        2. **Possible Causes**: Enumerate **all possible technical reasons** for this issue, including edge cases.
+                        3. **Solution Recommendations**: Provide a **step-by-step, well-structured** resolution, explaining each step clearly.
+                        4. **Code Implementation**:
+                            - **Provide a complete, working example** that directly addresses the issue.
+                            - The code must follow **industry best practices, be optimized, and production-ready**.
+                            - Include **necessary imports, dependencies, and setup steps**.
+                            - If applicable, include **test cases or validation methods**.
+                        5. **Alternative Solutions**: If multiple approaches exist, briefly compare them and explain when each should be used.
+                        6. **Best Practices & Optimization**: Suggest any **improvements, optimizations, or design patterns** that could enhance the implementation.
 
-                        Important Notes:
-                        - Keep the explanation clear and structured.
-                        - Ensure the code examples are well-formatted and easy to understand.
-                        - If multiple solutions exist, compare them briefly.
+                        **Important Notes:**
+                        - Do NOT provide vague or generic answers. Responses must be **highly detailed, direct, and immediately applicable**.
+                        - Ensure **code snippets are self-contained, properly formatted, and easy to integrate**.
+                        - If the issue requires debugging, provide **exact debugging techniques and tools** to identify the root cause.
+                        - Avoid theoretical discussions—focus on **concrete implementations**.
                         """
 
         # Embed the query

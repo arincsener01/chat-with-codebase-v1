@@ -99,7 +99,7 @@ def get_docs(
             )
         ]
         for file in filenames:
-            if file.endswith(tuple(file_names)):
+            if file.endswith(tuple(file_names)) and file not in BLACKLIST_DIRS:
                 file_path = os.path.join(dirpath, file)
                 loader = TextLoader(file_path, encoding="utf-8")
                 docs.extend(loader.load_and_split())
