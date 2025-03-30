@@ -200,7 +200,7 @@ class Chatbot:
                     128000 if self.model == "gpt-4o-mini-2024-07-18" else 8192
                 )
                 available_tokens = model_token_limit - input_tokens
-                max_tokens = max(256, min(available_tokens, 1000))
+                max_tokens = max(256, min(available_tokens, 4096))
 
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -216,5 +216,8 @@ class Chatbot:
 
         # Add to conversation history
         self.add_to_history(question, self.last_answer)
+
+        token_count = self.count_tokens(self.last_answer)
+        print(f"[DEBUG] Token count of the answer: {token_count}")
 
         return {"answer": self.last_answer, "related_docs": context}

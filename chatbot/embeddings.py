@@ -1,5 +1,8 @@
 import os
 import fnmatch
+import shutil
+import glob
+
 from git import Repo
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import CharacterTextSplitter
@@ -40,7 +43,19 @@ BLACKLIST_DIRS = [
     "**/package-lock.json",  # Ignore package-lock.json
     "**/yarn.lock",  # Ignore yarn.lock (if using Yarn)
     "**/pnpm-lock.yaml",  # Ignore pnpm lock file (if using pnpm)
+    "**/node_modules",  # Dependency folder for Node.js
 ]
+
+
+def remove_blacklisted_dirs(repo_dir):
+    for pattern in BLACKLIST_DIRS:
+        full_pattern = os.path.join(repo_dir, pattern)
+        for path in glob.glob(full_pattern, recursive=True):
+            if os.path.isfile(path):
+                os.remove(path)
+            elif os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+            print(f"Removed: {path}")
 
 
 def clone_repo(repo_url, codebase_name):
@@ -52,6 +67,8 @@ def clone_repo(repo_url, codebase_name):
         print(f"Repo already exists at {repo_dir}. Pulling latest changes.")
         repo = Repo(repo_dir)
         repo.remotes.origin.pull()
+
+    remove_blacklisted_dirs(repo_dir)
     return repo_dir
 
 
