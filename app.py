@@ -56,6 +56,12 @@ with st.sidebar:
         "Enter GitHub Repository URL", st.session_state.repo_url
     )
 
+    company_standards_input = st.text_area(
+        "Enter Company Coding Standards (optional)",
+        placeholder="e.g., Follow our naming conventions, code formatting guidelines, and architectural principles as documented in the internal style guide.",
+        height=100,
+    )
+
     # Dropdown for selecting the language model
     selected_model = st.selectbox("Select Language Model", list(MODEL_INFO.keys()))
 
@@ -156,8 +162,7 @@ def generate_solution_recommendation(issue_title: str, issue_description: str):
 
         # Use prompt from prompts.py
         query_text = SOLUTION_RECOMMENDATION_PROMPT.format(
-            issue_title=issue_title,
-            issue_description=issue_description
+            issue_title=issue_title, issue_description=issue_description
         )
 
         # Embed the query
@@ -264,22 +269,38 @@ with tab1:
 
                 st.write("### Answer")
                 # Format the context and use the prompt from prompts.py
-                context = "\n".join([
-                    f"File: {match['metadata'].get('source', 'Unknown')}\n"
-                    f"Content: {match['metadata'].get('content', 'No content')}"
-                    for match in matches[:5]  # Use top 5 most relevant matches
-                ])
-                
-                formatted_prompt = CHAT_WITH_CODEBASE_PROMPT.format(
-                    context=context,
-                    question=question
+                context = "\n".join(
+                    [
+                        f"File: {match['metadata'].get('source', 'Unknown')}\n"
+                        f"Content: {match['metadata'].get('content', 'No content')}"
+                        for match in matches[:5]  # Use top 5 most relevant matches
+                    ]
                 )
+
+                # formatted_prompt = CHAT_WITH_CODEBASE_PROMPT.format(
+                #     context=context, question=question
+                # )
+                # Prepare the company coding standards section
+                if company_standards_input.strip():
+                    company_standards_section = f"Company Coding Standards:\n{company_standards_input.strip()}\n"
+                else:
+                    company_standards_section = "Company Coding Standards:\nFollow our standard coding guidelines and best practices.\n"
+                formatted_prompt = CHAT_WITH_CODEBASE_PROMPT.format(
+                    company_standards_section=company_standards_section,
+                    context=context,
+                    question=question,
+                )
+                print(formatted_prompt)
                 with st.spinner("Generating response..."):
-                    response_content = st.session_state.chatbot.get_response(formatted_prompt)
+                    response_content = st.session_state.chatbot.get_response(
+                        formatted_prompt
+                    )
                     if response_content:
                         stream_response(response_content["answer"])
                     else:
-                        st.warning("The model did not return a response. Please try again.")
+                        st.warning(
+                            "The model did not return a response. Please try again."
+                        )
 
             except Exception as e:
                 st.error(f"Error processing your question: {str(e)}")

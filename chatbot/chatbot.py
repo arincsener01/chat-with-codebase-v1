@@ -173,7 +173,7 @@ class Chatbot:
                     model="claude-3-sonnet-20240229",
                     system=system_prompt,
                     messages=messages,
-                    max_tokens=1000,
+                    max_tokens=4096,
                     temperature=0.7,
                 )
                 self.last_answer = response.content[0].text.strip()

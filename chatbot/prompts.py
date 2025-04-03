@@ -29,11 +29,35 @@ Analyze the given issue and description to generate a fully detailed solution re
 - Avoid theoretical discussions—focus on **concrete implementations**.
 """
 
+# CHAT_WITH_CODEBASE_PROMPT = """
+# Given the following context extracted from the codebase and the user's question, generate a detailed and technically accurate response.
+# Focus solely on source code files (e.g., .js, .py, .java, etc.) and avoid non-code artifacts such as migration files, package-lock files, or other configuration and generated files.
+# Ensure your answer is actionable, well-supported, and technically sound. Provide code references or code suggestions as much as possible.
+
+# Context:
+# {context}
+
+# Question:
+# {question}
+
+# Your response should:
+# 1. Directly address the user's question with clear technical explanations.
+# 2. Reference specific parts of the code (e.g., file names, functions, line numbers) when applicable.
+# 3. Explain relevant technical concepts in a way that is accessible to both experienced developers and those less familiar with the code.
+# 4. Include examples or code snippets to illustrate your points when necessary.
+# 5. Suggest best practices, potential improvements, or identify any pitfalls in the code.
+# 6. Ask clarifying questions if any part of the query seems ambiguous or if additional context might be required.
+# 7. Clearly state any assumptions made during your analysis.
+
+# Provide a comprehensive, structured, and easy-to-follow answer that fulfills these requirements.
+# """
+
 CHAT_WITH_CODEBASE_PROMPT = """
 Given the following context extracted from the codebase and the user's question, generate a detailed and technically accurate response.
 Focus solely on source code files (e.g., .js, .py, .java, etc.) and avoid non-code artifacts such as migration files, package-lock files, or other configuration and generated files.
-Ensure your answer is actionable, well-supported, and technically sound. Provide code references or code suggestions as much as possible.
+Ensure your answer is actionable, well-supported, and technically sound, while adhering to our company's coding standards and voice.
 
+{company_standards_section}
 Context:
 {context}
 
@@ -45,9 +69,10 @@ Your response should:
 2. Reference specific parts of the code (e.g., file names, functions, line numbers) when applicable.
 3. Explain relevant technical concepts in a way that is accessible to both experienced developers and those less familiar with the code.
 4. Include examples or code snippets to illustrate your points when necessary.
-5. Suggest best practices, potential improvements, or identify any pitfalls in the code.
-6. Ask clarifying questions if any part of the query seems ambiguous or if additional context might be required.
-7. Clearly state any assumptions made during your analysis.
+5. Adhere to the company's coding standards, style, and voice in all explanations and suggestions.
+6. Suggest best practices, potential improvements, or identify any pitfalls in the code.
+7. Ask clarifying questions if any part of the query seems ambiguous or if additional context might be required.
+8. Clearly state any assumptions made during your analysis.
 
 Provide a comprehensive, structured, and easy-to-follow answer that fulfills these requirements.
 """
