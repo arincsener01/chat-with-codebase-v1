@@ -15,15 +15,19 @@ load_dotenv()
 # Set the API keys
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
+GOOGLE_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Validate API keys are present
 if not OPENAI_KEY:
     st.error("OpenAI API key not found in environment variables!")
 if not ANTHROPIC_KEY:
     st.error("Anthropic API key not found in environment variables!")
+if not GOOGLE_KEY:
+    st.error("Google API key not found in environment variables!")
 
 os.environ["OPENAI_API_KEY"] = OPENAI_KEY
 os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_KEY
+os.environ["GOOGLE_API_KEY"] = GOOGLE_KEY
 
 # List of available language models with their descriptions
 MODEL_INFO = {
@@ -34,6 +38,10 @@ MODEL_INFO = {
     "claude-3-sonnet-20240229": {
         "description": "Anthropic's Claude 3 Sonnet model with strong code analysis capabilities.",
         "provider": "anthropic",
+    },
+    "gemini-2.5-pro-exp-03-25": {
+        "description": "Google's Gemini 2.5 Pro model with advanced code understanding and generation capabilities.",
+        "provider": "google",
     },
 }
 
@@ -75,6 +83,8 @@ with st.sidebar:
             st.warning("⚠️ OpenAI API key not configured!")
         elif provider == "anthropic" and not ANTHROPIC_KEY:
             st.warning("⚠️ Anthropic API key not configured!")
+        elif provider == "google" and not GOOGLE_KEY:  # Add check for Google API key
+            st.warning("⚠️ Google API key not configured!")
 
     if st.button("Create/Load Embeddings"):
         if st.session_state.repo_url:
@@ -91,6 +101,10 @@ with st.sidebar:
                         raise ValueError("OpenAI API key not configured")
                     elif provider == "anthropic" and not ANTHROPIC_KEY:
                         raise ValueError("Anthropic API key not configured")
+                    elif (
+                        provider == "google" and not GOOGLE_KEY
+                    ):  # Add validation for Google API key
+                        raise ValueError("Google API key not configured")
 
                     # Clone the repository
                     repo_dir = clone_repo(st.session_state.repo_url, codebase_name)

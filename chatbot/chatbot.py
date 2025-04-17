@@ -5,12 +5,15 @@ from chatbot.pinecone_utils import connect_pinecone, search_vectors, insert_vect
 from langchain_huggingface import HuggingFaceEmbeddings
 import tiktoken
 from chatbot.reranker_config import CrossEncoderReranker
+import google.generativeai as genai
 
 
 class Chatbot:
     def __init__(self, model="gpt-4o-mini-2024-07-18", codebase_name=None):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        self.gemini_client = genai
         self.db = connect_pinecone()
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         self.model = model
@@ -22,6 +25,10 @@ class Chatbot:
     def _get_tokenizer(self):
         """Get the appropriate tokenizer based on model"""
         if "claude" in self.model.lower():
+            return tiktoken.get_encoding("cl100k_base")
+        elif "gemini" in self.model.lower():
+            # Gemini uses a different tokenization mechanism
+            # For estimation, we'll still use cl100k_base as an approximation
             return tiktoken.get_encoding("cl100k_base")
         else:
             try:
@@ -43,6 +50,8 @@ class Chatbot:
         # Set token limits based on model
         if "claude" in self.model.lower():
             token_limit = 100000  # Claude's larger context window
+        elif "gemini" in self.model.lower():
+            token_limit = 1000000  # Gemini 2.5 Pro has a very large context window
         else:
             token_limit = 128000 if self.model == "gpt-4o-mini-2024-07-18" else 8192
 
@@ -74,18 +83,82 @@ class Chatbot:
         )
         return combined
 
+    def format_context_for_llm(self, matches):
+        """Format retrieved documents into a well-structured context for the LLM."""
+        formatted_contexts = []
+
+        for idx, match in enumerate(matches):
+            source = match["metadata"].get("source", "Unknown")
+            content = match["metadata"].get("content", "No content available")
+
+            # Create a citation key
+            citation_key = f"[{idx+1}]"
+
+            # Format context with citation
+            formatted_context = (
+                f"{citation_key} Source: {source}\n" f"Content: {content}\n"
+            )
+            formatted_contexts.append(formatted_context)
+
+        # Combine formatted contexts with citation instruction
+        final_context = (
+            f"Below are relevant documents to answer the user's question:\n\n"
+            f"{''.join(formatted_contexts)}\n"
+            f"Please cite the sources using their numbers [1], [2], etc. when answering."
+        )
+
+        return final_context
+
+    def refine_query(self, original_query):
+        """Use the LLM to refine the query before search."""
+        prompt = f"""
+        You're a search query optimizer. Your task is to rewrite the following query
+        to be more effective for vector database retrieval. Make it more specific 
+        and include important keywords without changing the original intent.
+        
+        Original query: {original_query}
+        
+        Rewritten query:
+        """
+
+        response = self.client.chat.completions.create(
+            model="gpt-3.5-turbo",  # Using a cheaper model for this task
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a search query optimization assistant.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,  # Lower temperature for more focused results
+        )
+
+        refined_query = response.choices[0].message.content.strip()
+
+        # Extract just the query if the response contains explanation
+        if "Rewritten query:" in refined_query:
+            refined_query = refined_query.split("Rewritten query:")[-1].strip()
+
+        print(f"[DEBUG] Original query: {original_query}")
+        print(f"[DEBUG] Refined query: {refined_query}")
+
+        return refined_query
+
     def get_response(self, question):
         print(f"Received question: {question}")
         self.last_question = question
+
+        refined_question = self.refine_query(question)
+        print(f"[DEBUG] Using refined question: {refined_question}")
 
         # Perform similarity search on Pinecone
         try:
             # query_vector = self.embeddings.embed_query(question)
             recent_context = self.get_recent_user_messages(num_messages=3)
             augmented_query = (
-                f"{recent_context}\nUser Question: {question}"
+                f"{recent_context}\nUser Question: {refined_question}"
                 if recent_context
-                else question
+                else refined_question
             )
             print("[DEBUG-QUERY] Augmented Query for Embedding:\n", augmented_query)
 
@@ -139,11 +212,8 @@ class Chatbot:
             top_docs = reranked[:5]
 
             # 5) Bu dokümanları 'context' haline getirme
-            context = "\n".join(
-                f"Source: {doc['metadata'].get('source', 'Unknown')}, "
-                f"Content: {doc['metadata'].get('content', 'No content available')}"
-                for (doc, score) in top_docs
-            )
+            reranked_matches = [doc for doc, _ in top_docs]
+            context = self.format_context_for_llm(reranked_matches)
 
         except Exception as e:
             print(f"Error during re-ranking: {e}")
@@ -177,6 +247,46 @@ class Chatbot:
                     temperature=0.7,
                 )
                 self.last_answer = response.content[0].text.strip()
+
+            elif "gemini" in self.model.lower():
+                # Handle Gemini API request
+                system_prompt = "You are a helpful assistant for codebase queries. Provide detailed and thorough answers by leveraging the following context. Cite specific parts of the context when answering. If the question is unrelated, respond with 'I don't know.'"
+
+                # Configure the Gemini model
+                generation_config = {
+                    "temperature": 0.7,
+                    "top_p": 0.95,
+                    "max_output_tokens": 4096,
+                }
+
+                gemini_model = self.gemini_client.GenerativeModel(
+                    model_name="gemini-2.5-pro-exp-03-25",  # Use the experimental model
+                    generation_config=generation_config,
+                )
+
+                # Format conversation history for Gemini
+                gemini_history = []
+                if context_messages:
+                    for msg in context_messages:
+                        if msg["role"] == "user":
+                            gemini_history.append(
+                                {"role": "user", "parts": [msg["content"]]}
+                            )
+                        elif msg["role"] == "assistant":
+                            gemini_history.append(
+                                {"role": "model", "parts": [msg["content"]]}
+                            )
+
+                # Create a chat session with history
+                chat = gemini_model.start_chat(history=gemini_history)
+
+                # Send the prompt with context
+                prompt = (
+                    f"{system_prompt}\n\nContext: {context}\n\nQuestion: {question}"
+                )
+                response = chat.send_message(prompt)
+
+                self.last_answer = response.text
 
             else:
                 # Handle OpenAI API request
