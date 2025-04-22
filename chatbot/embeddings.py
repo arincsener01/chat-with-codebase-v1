@@ -47,14 +47,16 @@ BLACKLIST_DIRS = [
 ]
 
 
-def remove_blacklisted_dirs(repo_dir):
-    for pattern in BLACKLIST_DIRS:
+def remove_blacklisted_dirs(repo_dir, ignore_patterns):
+    for pattern in ignore_patterns:
         full_pattern = os.path.join(repo_dir, pattern)
         for path in glob.glob(full_pattern, recursive=True):
             if os.path.isfile(path):
                 os.remove(path)
+                print(f"[IGNORED] Removed file: {path}")
             elif os.path.isdir(path):
                 shutil.rmtree(path, ignore_errors=True)
+                print(f"[IGNORED] Removed dir: {path}")
             print(f"Removed: {path}")
 
 
@@ -68,8 +70,28 @@ def clone_repo(repo_url, codebase_name):
         repo = Repo(repo_dir)
         repo.remotes.origin.pull()
 
-    remove_blacklisted_dirs(repo_dir)
+    ignore_patterns = load_ignore_patterns(repo_dir)
+
+    remove_blacklisted_dirs(repo_dir, ignore_patterns)
     return repo_dir
+
+
+def load_ignore_patterns(repo_dir):
+    ignore_file = os.path.join(repo_dir, ".cobaseignore")
+    patterns = []
+    if os.path.exists(ignore_file):
+        print(f"[.cobaseignore] Found at: {ignore_file}")
+        with open(ignore_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    pattern = os.path.join("**", line)
+                    patterns.append(pattern)
+                    print(f"[.cobaseignore] Loaded pattern: {pattern}")
+    else:
+        print("[.cobaseignore] No ignore file found.")
+
+    return patterns
 
 
 def get_docs(
@@ -98,6 +120,7 @@ def get_docs(
         ".xml",  # XML files
         ".sql",  # SQL scripts
     ],
+    ignore_patterns=[],
 ):
     """Load codebase files and return as documents."""
     docs = []
@@ -112,14 +135,20 @@ def get_docs(
             for d in dirnames
             if not any(
                 fnmatch.fnmatch(os.path.join(dirpath, d), pattern)
-                for pattern in BLACKLIST_DIRS
+                for pattern in ignore_patterns
             )
         ]
         for file in filenames:
-            if file.endswith(tuple(file_names)) and file not in BLACKLIST_DIRS:
+            full_path = os.path.join(dirpath, file)
+            if file.endswith(tuple(file_names)) and not any(
+                fnmatch.fnmatch(full_path, pat) for pat in ignore_patterns
+            ):
+                print(f"[DOCS] Including file: {full_path}")
                 file_path = os.path.join(dirpath, file)
                 loader = TextLoader(file_path, encoding="utf-8")
                 docs.extend(loader.load_and_split())
+            else:
+                print(f"[IGNORED] Skipped file: {full_path}")
     return docs
 
 
